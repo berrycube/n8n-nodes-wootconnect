@@ -1,0 +1,45 @@
+{
+  "name": "@berrycube/n8n-nodes-wootconnect",
+  "version": "0.1.0",
+  "description": "Chatwoot node for n8n — Verified-ready",
+  "license": "MIT",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist/**/*"],
+  "keywords": ["n8n-community-node-package", "n8n", "chatwoot"],
+  "engines": {
+    "node": ">=20.15"
+  },
+  "n8n": {
+    "n8nNodesApiVersion": 1,
+    "nodes": ["dist/nodes/Chatwoot/Chatwoot.node.js"]
+  },
+  "scripts": {
+    "build": "tsc && npm run copy-files",
+    "copy-files": "copyfiles -u 1 \"nodes/**/*.{png,svg}\" dist/",
+    "dev": "tsc --watch",
+    "lint": "eslint nodes --ext .ts",
+    "test": "vitest",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.19",
+    "copyfiles": "^2.4.1",
+    "n8n-workflow": "^1.34.0",
+    "typescript": "^5.3.3",
+    "eslint": "^8.57.0",
+    "vitest": "^1.3.1"
+  },
+  "peerDependencies": {
+    "n8n-workflow": "*"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/berrycube/n8n-nodes-wootconnect.git"
+  },
+  "bugs": {
+    "url": "https://github.com/berrycube/n8n-nodes-wootconnect/issues"
+  },
+  "homepage": "https://github.com/berrycube/n8n-nodes-wootconnect#readme"
+}
