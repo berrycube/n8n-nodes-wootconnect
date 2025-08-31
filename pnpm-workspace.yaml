@@ -1,0 +1,8 @@
+packages:
+  # Public n8n plugins (MIT licensed)
+  - 'public/*'
+  # Private integration test suite  
+  - 'private/n8n-suite-integration'
+  # Private commercial extensions
+  - 'private/n8n-pro-extensions'
+  - 'private/n8n-pro-extensions/packages/*'

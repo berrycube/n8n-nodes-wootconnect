@@ -1,0 +1,15 @@
+[submodule "public/n8n-nodes-oauth2-enhanced"]
+	path = public/n8n-nodes-oauth2-enhanced
+	url = https://github.com/berrycube/n8n-nodes-oauth2-enhanced.git
+[submodule "public/n8n-nodes-evoguard"]
+	path = public/n8n-nodes-evoguard
+	url = https://github.com/berrycube/n8n-nodes-evoguard.git
+[submodule "public/n8n-nodes-wootconnect"]
+	path = public/n8n-nodes-wootconnect
+	url = https://github.com/berrycube/n8n-nodes-wootconnect.git
+[submodule "private/n8n-suite-integration"]
+	path = private/n8n-suite-integration
+	url = https://github.com/berrycube/n8n-suite-integration.git
+[submodule "private/n8n-pro-extensions"]
+	path = private/n8n-pro-extensions
+	url = https://github.com/berrycube/n8n-pro-extensions.git
