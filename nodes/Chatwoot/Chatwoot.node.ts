@@ -5,21 +5,20 @@ import {
   INodeTypeDescription,
   IHttpRequestMethods,
   NodeOperationError,
-  NodeConnectionType,
 } from 'n8n-workflow';
 
 export class Chatwoot implements INodeType {
   description: INodeTypeDescription = {
     displayName: 'Chatwoot',
     name: 'chatwoot',
-    group: ['communication'],
+    group: ['transform'],
     version: 1,
     description: 'Chatwoot integration for managing contacts, conversations, and messages',
     defaults: {
       name: 'Chatwoot',
     },
-    inputs: [{ type: NodeConnectionType.Main }],
-    outputs: [{ type: NodeConnectionType.Main }],
+    inputs: ['main'],
+    outputs: ['main'],
     properties: [
       {
         displayName: 'Operation',
