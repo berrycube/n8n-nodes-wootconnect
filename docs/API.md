@@ -97,7 +97,7 @@ interface EvoGuardConfig {
 ### 节点类型
 - **名称**: `chatwoot`
 - **显示名**: Chatwoot
-- **分类**: `communication`
+- **分类**: `transform`
 
 ### 支持操作
 
@@ -300,6 +300,38 @@ interface ConversationData {
 - 📚 [完整文档](https://github.com/berrycube/n8n-suite)
 - 🐛 [问题报告](https://github.com/berrycube/n8n-suite/issues)
 - 💬 [讨论区](https://github.com/berrycube/n8n-suite/discussions)
+
+---
+
+## 商业扩展 (未来规划)
+
+n8n-suite 还包含三个私有商业扩展包，为企业用户提供高级功能：
+
+### 📊 oce-pro-analytics
+**OAuth2 Enhanced 分析扩展**
+- OAuth2 token 使用统计和监控
+- API 调用成功率分析
+- 重试模式优化建议
+- 性能指标可视化仪表板
+- **状态**: 规划中
+
+### 🔧 woot-bulk-tools  
+**Chatwoot 批量操作工具**
+- CSV 格式联系人批量导入/导出
+- 批量消息发送和模板管理
+- 对话批量分配和状态变更
+- 数据同步和迁移助手
+- **状态**: 规划中
+
+### 📝 evo-templates-pro
+**Evolution API 模板库**
+- WhatsApp 消息模板库管理
+- 实例配置模板和快速部署
+- 监控仪表板模板
+- 自动化运维脚本模板
+- **状态**: 规划中
+
+> **注意**: 商业扩展功能目前处于规划阶段，将根据用户需求和反馈逐步开发。如有具体需求，请通过 GitHub Issues 联系我们。
 
 ---
 
