@@ -1,264 +1,487 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Chatwoot } from './Chatwoot.node';
 
-describe('Chatwoot Node', () => {
-  describe('基本配置', () => {
-    it('should have correct node type name', () => {
-      const node = new Chatwoot();
-      expect(node.description.name).toBe('chatwoot');
+// Mock the n8n-workflow module
+vi.mock('n8n-workflow', () => ({
+  NodeOperationError: class extends Error {
+    constructor(node: any, error: Error | string, options?: any) {
+      const message = typeof error === 'string' ? error : error.message;
+      super(message);
+      this.name = 'NodeOperationError';
+    }
+  }
+}));
+
+describe('Chatwoot Node - Business Logic Tests', () => {
+  let chatwoot: Chatwoot;
+  let mockExecuteFunctions: any;
+
+  beforeEach(() => {
+    chatwoot = new Chatwoot();
+    mockExecuteFunctions = {
+      getInputData: vi.fn(() => [{ json: { test: 'data' } }]),
+      getNodeParameter: vi.fn(),
+      getNode: vi.fn(() => ({ name: 'Test Chatwoot Node' })),
+      continueOnFail: vi.fn(() => false),
+      helpers: {
+        request: vi.fn()
+      }
+    };
+  });
+
+  describe('Contact Operations', () => {
+    describe('Get Contacts', () => {
+      it('should successfully retrieve all contacts', async () => {
+        const mockResponse = {
+          payload: [
+            { id: 1, name: 'John Doe', email: 'john@example.com' },
+            { id: 2, name: 'Jane Smith', email: 'jane@example.com' }
+          ],
+          meta: { total: 2, page: 1 }
+        };
+
+        mockExecuteFunctions.getNodeParameter
+          .mockReturnValueOnce('getContacts') // operation
+          .mockReturnValueOnce('https://chat.example.com') // baseUrl
+          .mockReturnValueOnce('123') // accountId
+          .mockReturnValueOnce('test-api-token'); // apiToken
+
+        mockExecuteFunctions.helpers.request.mockResolvedValue(mockResponse);
+
+        const result = await chatwoot.execute.call(mockExecuteFunctions);
+
+        expect(result[0]).toHaveLength(1);
+        expect(result[0][0].json.success).toBe(true);
+        expect(result[0][0].json.operation).toBe('getContacts');
+        expect(result[0][0].json.contacts).toEqual(mockResponse.payload);
+        expect(result[0][0].json.meta).toEqual(mockResponse.meta);
+
+        // Verify API request structure
+        const requestCall = mockExecuteFunctions.helpers.request.mock.calls[0][0];
+        expect(requestCall.method).toBe('GET');
+        expect(requestCall.url).toBe('https://chat.example.com/api/v1/accounts/123/contacts');
+        expect(requestCall.headers['api_access_token']).toBe('test-api-token');
+        expect(requestCall.headers['Content-Type']).toBe('application/json');
+      });
+
+      it('should handle contacts API failure', async () => {
+        mockExecuteFunctions.getNodeParameter
+          .mockReturnValueOnce('getContacts')
+          .mockReturnValueOnce('https://chat.example.com')
+          .mockReturnValueOnce('123')
+          .mockReturnValueOnce('invalid-token');
+
+        mockExecuteFunctions.helpers.request.mockRejectedValue(new Error('Unauthorized'));
+
+        const result = await chatwoot.execute.call(mockExecuteFunctions);
+
+        expect(result[0][0].json.success).toBe(false);
+        expect(result[0][0].json.operation).toBe('getContacts');
+        expect(result[0][0].json.error).toBe('Unauthorized');
+      });
     });
 
-    it('should have correct display name', () => {
-      const node = new Chatwoot();
-      expect(node.description.displayName).toBe('Chatwoot');
+    describe('Create Contact', () => {
+      it('should successfully create a new contact', async () => {
+        const contactData = {
+          name: 'New User',
+          email: 'newuser@example.com',
+          phone_number: '+1234567890'
+        };
+
+        const mockResponse = {
+          payload: { id: 3, ...contactData, created_at: '2024-01-01T00:00:00Z' }
+        };
+
+        mockExecuteFunctions.getNodeParameter
+          .mockReturnValueOnce('createContact')
+          .mockReturnValueOnce('https://chat.example.com')
+          .mockReturnValueOnce('123')
+          .mockReturnValueOnce('test-api-token')
+          .mockReturnValueOnce(contactData); // contactData
+
+        mockExecuteFunctions.helpers.request.mockResolvedValue(mockResponse);
+
+        const result = await chatwoot.execute.call(mockExecuteFunctions);
+
+        expect(result[0][0].json.success).toBe(true);
+        expect(result[0][0].json.operation).toBe('createContact');
+        expect(result[0][0].json.contact).toEqual(mockResponse.payload);
+
+        // Verify request body
+        const requestCall = mockExecuteFunctions.helpers.request.mock.calls[0][0];
+        expect(requestCall.method).toBe('POST');
+        expect(requestCall.body).toEqual(contactData);
+      });
+
+      it('should handle contact creation failure', async () => {
+        const contactData = { email: 'invalid-email' };
+
+        mockExecuteFunctions.getNodeParameter
+          .mockReturnValueOnce('createContact')
+          .mockReturnValueOnce('https://chat.example.com')
+          .mockReturnValueOnce('123')
+          .mockReturnValueOnce('test-api-token')
+          .mockReturnValueOnce(contactData);
+
+        mockExecuteFunctions.helpers.request.mockRejectedValue(new Error('Invalid email format'));
+
+        const result = await chatwoot.execute.call(mockExecuteFunctions);
+
+        expect(result[0][0].json.success).toBe(false);
+        expect(result[0][0].json.error).toBe('Invalid email format');
+        expect(result[0][0].json.contactData).toEqual(contactData);
+      });
     });
 
-    it('should be categorized correctly', () => {
-      const node = new Chatwoot();
-      expect(node.description.group).toContain('communication');
+    describe('Get Contact', () => {
+      it('should retrieve specific contact by ID', async () => {
+        const mockResponse = {
+          payload: { id: 1, name: 'John Doe', email: 'john@example.com' }
+        };
+
+        mockExecuteFunctions.getNodeParameter
+          .mockReturnValueOnce('getContact')
+          .mockReturnValueOnce('https://chat.example.com')
+          .mockReturnValueOnce('123')
+          .mockReturnValueOnce('test-api-token')
+          .mockReturnValueOnce('1'); // contactId
+
+        mockExecuteFunctions.helpers.request.mockResolvedValue(mockResponse);
+
+        const result = await chatwoot.execute.call(mockExecuteFunctions);
+
+        expect(result[0][0].json.success).toBe(true);
+        expect(result[0][0].json.contact).toEqual(mockResponse.payload);
+
+        const requestCall = mockExecuteFunctions.helpers.request.mock.calls[0][0];
+        expect(requestCall.url).toBe('https://chat.example.com/api/v1/accounts/123/contacts/1');
+      });
+
+      it('should handle contact not found', async () => {
+        mockExecuteFunctions.getNodeParameter
+          .mockReturnValueOnce('getContact')
+          .mockReturnValueOnce('https://chat.example.com')
+          .mockReturnValueOnce('123')
+          .mockReturnValueOnce('test-api-token')
+          .mockReturnValueOnce('999');
+
+        mockExecuteFunctions.helpers.request.mockRejectedValue(new Error('Contact not found'));
+
+        const result = await chatwoot.execute.call(mockExecuteFunctions);
+
+        expect(result[0][0].json.success).toBe(false);
+        expect(result[0][0].json.error).toBe('Contact not found');
+        expect(result[0][0].json.contactId).toBe('999');
+      });
     });
 
-    it('should have correct version', () => {
-      const node = new Chatwoot();
-      expect(node.description.version).toBe(1);
+    describe('Update Contact', () => {
+      it('should successfully update contact', async () => {
+        const updateData = { name: 'Updated Name', phone_number: '+9876543210' };
+        const mockResponse = {
+          payload: { id: 1, name: 'Updated Name', email: 'john@example.com', phone_number: '+9876543210' }
+        };
+
+        mockExecuteFunctions.getNodeParameter
+          .mockReturnValueOnce('updateContact')
+          .mockReturnValueOnce('https://chat.example.com')
+          .mockReturnValueOnce('123')
+          .mockReturnValueOnce('test-api-token')
+          .mockReturnValueOnce('1') // contactId
+          .mockReturnValueOnce(updateData); // contactData
+
+        mockExecuteFunctions.helpers.request.mockResolvedValue(mockResponse);
+
+        const result = await chatwoot.execute.call(mockExecuteFunctions);
+
+        expect(result[0][0].json.success).toBe(true);
+        expect(result[0][0].json.contact).toEqual(mockResponse.payload);
+
+        const requestCall = mockExecuteFunctions.helpers.request.mock.calls[0][0];
+        expect(requestCall.method).toBe('PUT');
+        expect(requestCall.body).toEqual(updateData);
+      });
+    });
+
+    describe('Delete Contact', () => {
+      it('should successfully delete contact', async () => {
+        mockExecuteFunctions.getNodeParameter
+          .mockReturnValueOnce('deleteContact')
+          .mockReturnValueOnce('https://chat.example.com')
+          .mockReturnValueOnce('123')
+          .mockReturnValueOnce('test-api-token')
+          .mockReturnValueOnce('1'); // contactId
+
+        mockExecuteFunctions.helpers.request.mockResolvedValue({});
+
+        const result = await chatwoot.execute.call(mockExecuteFunctions);
+
+        expect(result[0][0].json.success).toBe(true);
+        expect(result[0][0].json.message).toBe('Contact deleted successfully');
+        expect(result[0][0].json.contactId).toBe('1');
+
+        const requestCall = mockExecuteFunctions.helpers.request.mock.calls[0][0];
+        expect(requestCall.method).toBe('DELETE');
+      });
     });
   });
 
-  describe('节点属性', () => {
-    it('should have operation parameter', () => {
-      const node = new Chatwoot();
-      const properties = node.description.properties;
-      const operationProp = properties.find((p: any) => p.name === 'operation');
-      
-      expect(operationProp).toBeDefined();
-      expect(operationProp?.type).toBe('options');
-      expect(operationProp?.default).toBe('getContacts');
+  describe('Conversation Operations', () => {
+    describe('Get Conversations', () => {
+      it('should retrieve conversations for a contact', async () => {
+        const mockResponse = {
+          payload: [
+            { id: 1, status: 'open', messages_count: 5 },
+            { id: 2, status: 'resolved', messages_count: 3 }
+          ],
+          meta: { total: 2 }
+        };
+
+        mockExecuteFunctions.getNodeParameter
+          .mockReturnValueOnce('getConversations')
+          .mockReturnValueOnce('https://chat.example.com')
+          .mockReturnValueOnce('123')
+          .mockReturnValueOnce('test-api-token')
+          .mockReturnValueOnce('1'); // contactId
+
+        mockExecuteFunctions.helpers.request.mockResolvedValue(mockResponse);
+
+        const result = await chatwoot.execute.call(mockExecuteFunctions);
+
+        expect(result[0][0].json.success).toBe(true);
+        expect(result[0][0].json.conversations).toEqual(mockResponse.payload);
+        expect(result[0][0].json.contactId).toBe('1');
+
+        const requestCall = mockExecuteFunctions.helpers.request.mock.calls[0][0];
+        expect(requestCall.url).toBe('https://chat.example.com/api/v1/accounts/123/contacts/1/conversations');
+      });
     });
 
-    it('should have baseUrl parameter', () => {
-      const node = new Chatwoot();
-      const properties = node.description.properties;
-      const baseUrlProp = properties.find((p: any) => p.name === 'baseUrl');
-      
-      expect(baseUrlProp).toBeDefined();
-      expect(baseUrlProp?.type).toBe('string');
-      expect(baseUrlProp?.required).toBe(true);
-      expect(baseUrlProp?.default).toBe('https://your-chatwoot-instance.com');
-    });
+    describe('Update Conversation', () => {
+      it('should update conversation status and assignment', async () => {
+        const conversationData = {
+          status: 'resolved',
+          assignee_id: '5',
+          priority: 'high'
+        };
 
-    it('should have accountId parameter', () => {
-      const node = new Chatwoot();
-      const properties = node.description.properties;
-      const accountIdProp = properties.find((p: any) => p.name === 'accountId');
-      
-      expect(accountIdProp).toBeDefined();
-      expect(accountIdProp?.type).toBe('string');
-      expect(accountIdProp?.required).toBe(true);
-    });
+        const mockResponse = {
+          payload: { id: 1, status: 'resolved', assignee_id: 5, priority: 'high' }
+        };
 
-    it('should have apiToken parameter with password type', () => {
-      const node = new Chatwoot();
-      const properties = node.description.properties;
-      const apiTokenProp = properties.find((p: any) => p.name === 'apiToken');
-      
-      expect(apiTokenProp).toBeDefined();
-      expect(apiTokenProp?.type).toBe('string');
-      expect(apiTokenProp?.required).toBe(true);
-      expect(apiTokenProp?.typeOptions?.password).toBe(true);
-    });
+        mockExecuteFunctions.getNodeParameter
+          .mockReturnValueOnce('updateConversation')
+          .mockReturnValueOnce('https://chat.example.com')
+          .mockReturnValueOnce('123')
+          .mockReturnValueOnce('test-api-token')
+          .mockReturnValueOnce('1') // conversationId
+          .mockReturnValueOnce(conversationData); // conversationData
 
-    it('should have contactId parameter for specific operations', () => {
-      const node = new Chatwoot();
-      const properties = node.description.properties;
-      const contactIdProp = properties.find((p: any) => p.name === 'contactId');
-      
-      expect(contactIdProp).toBeDefined();
-      expect(contactIdProp?.type).toBe('string');
-      expect(contactIdProp?.displayOptions?.show?.operation).toEqual([
-        'getContact', 'updateContact', 'deleteContact', 'getConversations'
-      ]);
-    });
+        mockExecuteFunctions.helpers.request.mockResolvedValue(mockResponse);
 
-    it('should have conversationId parameter for conversation operations', () => {
-      const node = new Chatwoot();
-      const properties = node.description.properties;
-      const conversationIdProp = properties.find((p: any) => p.name === 'conversationId');
-      
-      expect(conversationIdProp).toBeDefined();
-      expect(conversationIdProp?.type).toBe('string');
-      expect(conversationIdProp?.displayOptions?.show?.operation).toEqual([
-        'getMessages', 'sendMessage', 'updateConversation'
-      ]);
-    });
+        const result = await chatwoot.execute.call(mockExecuteFunctions);
 
-    it('should have messageContent parameter for send message', () => {
-      const node = new Chatwoot();
-      const properties = node.description.properties;
-      const messageContentProp = properties.find((p: any) => p.name === 'messageContent');
-      
-      expect(messageContentProp).toBeDefined();
-      expect(messageContentProp?.type).toBe('string');
-      expect(messageContentProp?.displayOptions?.show?.operation).toEqual(['sendMessage']);
-      expect(messageContentProp?.typeOptions?.rows).toBe(3);
-    });
+        expect(result[0][0].json.success).toBe(true);
+        expect(result[0][0].json.conversation).toEqual(mockResponse.payload);
 
-    it('should have contactData parameter for create/update contact', () => {
-      const node = new Chatwoot();
-      const properties = node.description.properties;
-      const contactDataProp = properties.find((p: any) => p.name === 'contactData');
-      
-      expect(contactDataProp).toBeDefined();
-      expect(contactDataProp?.type).toBe('collection');
-      expect(contactDataProp?.displayOptions?.show?.operation).toEqual(['createContact', 'updateContact']);
+        const requestCall = mockExecuteFunctions.helpers.request.mock.calls[0][0];
+        expect(requestCall.method).toBe('PUT');
+        expect(requestCall.body).toEqual(conversationData);
+        expect(requestCall.url).toBe('https://chat.example.com/api/v1/accounts/123/conversations/1');
+      });
     });
   });
 
-  describe('操作选项', () => {
-    it('should support get contacts operation', () => {
-      const node = new Chatwoot();
-      const properties = node.description.properties;
-      const operationProp = properties.find((p: any) => p.name === 'operation');
-      const getContactsOption = operationProp?.options.find((o: any) => o.value === 'getContacts');
-      
-      expect(getContactsOption).toBeDefined();
-      expect(getContactsOption?.name).toBe('Get Contacts');
-      expect(getContactsOption?.description).toBe('Retrieve all contacts');
+  describe('Message Operations', () => {
+    describe('Get Messages', () => {
+      it('should retrieve messages from conversation', async () => {
+        const mockResponse = {
+          payload: [
+            { id: 1, content: 'Hello!', message_type: 'incoming' },
+            { id: 2, content: 'Hi there!', message_type: 'outgoing' }
+          ],
+          meta: { total: 2 }
+        };
+
+        mockExecuteFunctions.getNodeParameter
+          .mockReturnValueOnce('getMessages')
+          .mockReturnValueOnce('https://chat.example.com')
+          .mockReturnValueOnce('123')
+          .mockReturnValueOnce('test-api-token')
+          .mockReturnValueOnce('1'); // conversationId
+
+        mockExecuteFunctions.helpers.request.mockResolvedValue(mockResponse);
+
+        const result = await chatwoot.execute.call(mockExecuteFunctions);
+
+        expect(result[0][0].json.success).toBe(true);
+        expect(result[0][0].json.messages).toEqual(mockResponse.payload);
+        expect(result[0][0].json.conversationId).toBe('1');
+
+        const requestCall = mockExecuteFunctions.helpers.request.mock.calls[0][0];
+        expect(requestCall.url).toBe('https://chat.example.com/api/v1/accounts/123/conversations/1/messages');
+      });
     });
 
-    it('should support create contact operation', () => {
-      const node = new Chatwoot();
-      const properties = node.description.properties;
-      const operationProp = properties.find((p: any) => p.name === 'operation');
-      const createContactOption = operationProp?.options.find((o: any) => o.value === 'createContact');
-      
-      expect(createContactOption).toBeDefined();
-      expect(createContactOption?.name).toBe('Create Contact');
-      expect(createContactOption?.description).toBe('Create a new contact');
-    });
+    describe('Send Message', () => {
+      it('should send message to conversation', async () => {
+        const messageContent = 'This is a test message';
+        const mockResponse = {
+          id: 3,
+          content: messageContent,
+          message_type: 'outgoing',
+          created_at: '2024-01-01T00:00:00Z'
+        };
 
-    it('should support send message operation', () => {
-      const node = new Chatwoot();
-      const properties = node.description.properties;
-      const operationProp = properties.find((p: any) => p.name === 'operation');
-      const sendMessageOption = operationProp?.options.find((o: any) => o.value === 'sendMessage');
-      
-      expect(sendMessageOption).toBeDefined();
-      expect(sendMessageOption?.name).toBe('Send Message');
-      expect(sendMessageOption?.description).toBe('Send a message to a conversation');
-    });
+        mockExecuteFunctions.getNodeParameter
+          .mockReturnValueOnce('sendMessage')
+          .mockReturnValueOnce('https://chat.example.com')
+          .mockReturnValueOnce('123')
+          .mockReturnValueOnce('test-api-token')
+          .mockReturnValueOnce('1') // conversationId
+          .mockReturnValueOnce(messageContent); // messageContent
 
-    it('should support get conversations operation', () => {
-      const node = new Chatwoot();
-      const properties = node.description.properties;
-      const operationProp = properties.find((p: any) => p.name === 'operation');
-      const getConversationsOption = operationProp?.options.find((o: any) => o.value === 'getConversations');
-      
-      expect(getConversationsOption).toBeDefined();
-      expect(getConversationsOption?.name).toBe('Get Conversations');
-      expect(getConversationsOption?.description).toBe('Get conversations for a contact');
-    });
+        mockExecuteFunctions.helpers.request.mockResolvedValue(mockResponse);
 
-    it('should support get messages operation', () => {
-      const node = new Chatwoot();
-      const properties = node.description.properties;
-      const operationProp = properties.find((p: any) => p.name === 'operation');
-      const getMessagesOption = operationProp?.options.find((o: any) => o.value === 'getMessages');
-      
-      expect(getMessagesOption).toBeDefined();
-      expect(getMessagesOption?.name).toBe('Get Messages');
-      expect(getMessagesOption?.description).toBe('Get messages from a conversation');
-    });
+        const result = await chatwoot.execute.call(mockExecuteFunctions);
 
-    it('should support update conversation operation', () => {
-      const node = new Chatwoot();
-      const properties = node.description.properties;
-      const operationProp = properties.find((p: any) => p.name === 'operation');
-      const updateConversationOption = operationProp?.options.find((o: any) => o.value === 'updateConversation');
-      
-      expect(updateConversationOption).toBeDefined();
-      expect(updateConversationOption?.name).toBe('Update Conversation');
-      expect(updateConversationOption?.description).toBe('Update conversation status or assignment');
-    });
-  });
+        expect(result[0][0].json.success).toBe(true);
+        expect(result[0][0].json.message).toEqual(mockResponse);
+        expect(result[0][0].json.conversationId).toBe('1');
 
-  describe('执行功能', () => {
-    it('should implement execute method', () => {
-      const node = new Chatwoot();
-      expect(typeof node.execute).toBe('function');
-    });
+        const requestCall = mockExecuteFunctions.helpers.request.mock.calls[0][0];
+        expect(requestCall.method).toBe('POST');
+        expect(requestCall.body.content).toBe(messageContent);
+        expect(requestCall.body.message_type).toBe('outgoing');
+        expect(requestCall.url).toBe('https://chat.example.com/api/v1/accounts/123/conversations/1/messages');
+      });
 
-    it('should have correct operation count', () => {
-      const node = new Chatwoot();
-      const properties = node.description.properties;
-      const operationProp = properties.find((p: any) => p.name === 'operation');
-      
-      expect(operationProp?.options.length).toBe(9);
-      expect(operationProp?.options.map((o: any) => o.value)).toEqual([
-        'getContacts',
-        'createContact',
-        'getContact',
-        'updateContact',
-        'deleteContact',
-        'getConversations',
-        'getMessages',
-        'sendMessage',
-        'updateConversation'
-      ]);
+      it('should handle message sending failure', async () => {
+        mockExecuteFunctions.getNodeParameter
+          .mockReturnValueOnce('sendMessage')
+          .mockReturnValueOnce('https://chat.example.com')
+          .mockReturnValueOnce('123')
+          .mockReturnValueOnce('test-api-token')
+          .mockReturnValueOnce('999') // invalid conversationId
+          .mockReturnValueOnce('Test message');
+
+        mockExecuteFunctions.helpers.request.mockRejectedValue(new Error('Conversation not found'));
+
+        const result = await chatwoot.execute.call(mockExecuteFunctions);
+
+        expect(result[0][0].json.success).toBe(false);
+        expect(result[0][0].json.error).toBe('Conversation not found');
+        expect(result[0][0].json.conversationId).toBe('999');
+        expect(result[0][0].json.messageContent).toBe('Test message');
+      });
     });
   });
 
-  describe('Chatwoot API功能', () => {
-    it('should handle API response data structure', () => {
-      const node = new Chatwoot();
-      
-      // Test that the node is structured to handle Chatwoot API responses
-      const properties = node.description.properties;
-      const operationProp = properties.find((p: any) => p.name === 'operation');
-      
-      expect(operationProp?.options.length).toBe(9);
-      expect(operationProp?.options.map((o: any) => o.value)).toEqual([
-        'getContacts',
-        'createContact', 
-        'getContact',
-        'updateContact',
-        'deleteContact',
-        'getConversations',
-        'getMessages',
-        'sendMessage',
-        'updateConversation'
-      ]);
+  describe('Error Handling and Edge Cases', () => {
+    it('should handle unknown operation', async () => {
+      mockExecuteFunctions.getNodeParameter
+        .mockReturnValueOnce('unknownOperation')
+        .mockReturnValueOnce('https://chat.example.com')
+        .mockReturnValueOnce('123')
+        .mockReturnValueOnce('test-api-token');
+
+      let thrownError;
+      try {
+        await chatwoot.execute.call(mockExecuteFunctions);
+      } catch (error) {
+        thrownError = error;
+      }
+
+      expect(thrownError).toBeDefined();
+      expect(thrownError.message).toBe('Unknown operation: unknownOperation');
+      expect(thrownError.name).toBe('NodeOperationError');
     });
 
-    it('should support contact data collection fields', () => {
-      const node = new Chatwoot();
-      const properties = node.description.properties;
-      const contactDataProp = properties.find((p: any) => p.name === 'contactData');
-      
-      expect(contactDataProp?.placeholder).toBe('Add contact fields');
-      expect(contactDataProp?.options?.length).toBeGreaterThan(0);
-      
-      // Check for essential contact fields
-      const nameField = contactDataProp?.options?.find((o: any) => o.name === 'name');
-      const emailField = contactDataProp?.options?.find((o: any) => o.name === 'email');
-      const phoneField = contactDataProp?.options?.find((o: any) => o.name === 'phone_number');
-      
-      expect(nameField).toBeDefined();
-      expect(emailField).toBeDefined();
-      expect(phoneField).toBeDefined();
+    it('should handle continueOnFail mode', async () => {
+      mockExecuteFunctions.continueOnFail.mockReturnValue(true);
+      mockExecuteFunctions.getNodeParameter
+        .mockReturnValueOnce('getContacts')
+        .mockReturnValueOnce('https://invalid-url')
+        .mockReturnValueOnce('123')
+        .mockReturnValueOnce('test-api-token');
+
+      mockExecuteFunctions.helpers.request.mockRejectedValue(new Error('Network error'));
+
+      const result = await chatwoot.execute.call(mockExecuteFunctions);
+
+      expect(result[0]).toHaveLength(1);
+      expect(result[0][0].json.success).toBe(false);
+      expect(result[0][0].json.error).toBe('Network error');
     });
 
-    it('should validate required parameters for each operation', () => {
-      const node = new Chatwoot();
-      const properties = node.description.properties;
-      
-      // Base URL and API token should always be required
-      const baseUrlProp = properties.find((p: any) => p.name === 'baseUrl');
-      const apiTokenProp = properties.find((p: any) => p.name === 'apiToken');
-      const accountIdProp = properties.find((p: any) => p.name === 'accountId');
-      
-      expect(baseUrlProp?.required).toBe(true);
-      expect(apiTokenProp?.required).toBe(true);
-      expect(accountIdProp?.required).toBe(true);
+    it('should include timestamp and operation in all responses', async () => {
+      const beforeTime = new Date().toISOString();
+
+      mockExecuteFunctions.getNodeParameter
+        .mockReturnValueOnce('getContacts')
+        .mockReturnValueOnce('https://chat.example.com')
+        .mockReturnValueOnce('123')
+        .mockReturnValueOnce('test-api-token');
+
+      mockExecuteFunctions.helpers.request.mockResolvedValue({ payload: [] });
+
+      const result = await chatwoot.execute.call(mockExecuteFunctions);
+      const afterTime = new Date().toISOString();
+
+      expect(result[0][0].json.timestamp).toBeDefined();
+      expect(result[0][0].json.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+      expect(result[0][0].json.timestamp >= beforeTime).toBe(true);
+      expect(result[0][0].json.timestamp <= afterTime).toBe(true);
+      expect(result[0][0].json.operation).toBe('getContacts');
+    });
+
+    it('should properly structure API authentication', async () => {
+      mockExecuteFunctions.getNodeParameter
+        .mockReturnValueOnce('getContacts')
+        .mockReturnValueOnce('https://enterprise.chatwoot.com')
+        .mockReturnValueOnce('enterprise-account-123')
+        .mockReturnValueOnce('secure-api-token-xyz');
+
+      mockExecuteFunctions.helpers.request.mockResolvedValue({ payload: [] });
+
+      await chatwoot.execute.call(mockExecuteFunctions);
+
+      const requestCall = mockExecuteFunctions.helpers.request.mock.calls[0][0];
+      expect(requestCall.headers['api_access_token']).toBe('secure-api-token-xyz');
+      expect(requestCall.headers['Content-Type']).toBe('application/json');
+      expect(requestCall.json).toBe(true);
+      expect(requestCall.url).toBe('https://enterprise.chatwoot.com/api/v1/accounts/enterprise-account-123/contacts');
+    });
+
+    it('should handle different contact data structures', async () => {
+      const complexContactData = {
+        name: 'Enterprise User',
+        email: 'enterprise@company.com',
+        phone_number: '+1-555-0123',
+        avatar_url: 'https://company.com/avatar.jpg',
+        identifier: 'EMP-12345',
+        custom_attributes: { department: 'Engineering', role: 'Senior Developer' }
+      };
+
+      const mockResponse = { payload: { id: 10, ...complexContactData } };
+
+      mockExecuteFunctions.getNodeParameter
+        .mockReturnValueOnce('createContact')
+        .mockReturnValueOnce('https://chat.example.com')
+        .mockReturnValueOnce('123')
+        .mockReturnValueOnce('test-api-token')
+        .mockReturnValueOnce(complexContactData);
+
+      mockExecuteFunctions.helpers.request.mockResolvedValue(mockResponse);
+
+      const result = await chatwoot.execute.call(mockExecuteFunctions);
+
+      expect(result[0][0].json.success).toBe(true);
+      expect(result[0][0].json.contact).toEqual(mockResponse.payload);
+
+      const requestCall = mockExecuteFunctions.helpers.request.mock.calls[0][0];
+      expect(requestCall.body).toEqual(complexContactData);
     });
   });
 });
