@@ -8,6 +8,95 @@ import {
 } from 'n8n-workflow';
 
 export class Chatwoot implements INodeType {
+  /**
+   * Create a standardized HTTP request to the Chatwoot API
+   * @param baseUrl - Chatwoot instance base URL
+   * @param accountId - Account ID
+   * @param apiToken - API access token
+   * @param endpoint - API endpoint (e.g., '/contacts')
+   * @param method - HTTP method
+   * @param body - Request body for POST/PUT requests
+   * @returns HTTP request options
+   */
+  public createApiRequest(
+    baseUrl: string, 
+    accountId: string, 
+    apiToken: string, 
+    endpoint: string, 
+    method: IHttpRequestMethods,
+    body?: any
+  ) {
+    const url = `${baseUrl}/api/v1/accounts/${accountId}${endpoint}`;
+    const options: any = {
+      method,
+      url,
+      headers: {
+        'api_access_token': apiToken,
+        'Content-Type': 'application/json',
+      },
+      json: true,
+    };
+    
+    if (body && (method === 'POST' || method === 'PUT')) {
+      options.body = body;
+    }
+    
+    return options;
+  }
+  
+  /**
+   * Execute API request with standardized error handling
+   * @param requestHelper - n8n request helper
+   * @param requestOptions - HTTP request options
+   * @param operation - Operation name for error context
+   * @param additionalData - Additional data to include in error response
+   * @returns Standardized API response
+   */
+  public async executeApiRequest(
+    requestHelper: any,
+    requestOptions: any,
+    operation: string,
+    additionalData: any = {}
+  ): Promise<{ success: boolean; [key: string]: any }> {
+    try {
+      const response = await requestHelper.request(requestOptions);
+      return {
+        operation,
+        success: true,
+        ...additionalData,
+        ...(response.payload ? { [this.getResponseKey(operation)]: response.payload } : (operation === 'sendMessage' ? { message: response } : {})),
+        ...(response.meta ? { meta: response.meta } : {}),
+      };
+    } catch (error) {
+      return {
+        operation,
+        success: false,
+        error: error instanceof Error ? error.message : `Failed to ${operation}`,
+        ...additionalData,
+      };
+    }
+  }
+  
+  /**
+   * Get the appropriate response key based on operation
+   * @param operation - Operation name
+   * @returns Response key name
+   */
+  public getResponseKey(operation: string): string {
+    const keyMap: { [key: string]: string } = {
+      'getContacts': 'contacts',
+      'createContact': 'contact',
+      'getContact': 'contact', 
+      'updateContact': 'contact',
+      'deleteContact': 'message',
+      'getConversations': 'conversations',
+      'updateConversation': 'conversation',
+      'getMessages': 'messages',
+      'sendMessage': 'message'
+    };
+    return keyMap[operation] || 'data';
+  }
+
   description: INodeTypeDescription = {
     displayName: 'Chatwoot',
     name: 'chatwoot',
@@ -283,6 +372,7 @@ export class Chatwoot implements INodeType {
   async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
     const items = this.getInputData();
     const returnData: INodeExecutionData[] = [];
+    const chatwootInstance = new Chatwoot();
 
     for (let i = 0; i < items.length; i++) {
       const operation = this.getNodeParameter('operation', i) as string;
@@ -295,292 +385,60 @@ export class Chatwoot implements INodeType {
         
         switch (operation) {
           case 'getContacts':
-            try {
-              const options = {
-                method: 'GET' as IHttpRequestMethods,
-                url: `${baseUrl}/api/v1/accounts/${accountId}/contacts`,
-                headers: {
-                  'api_access_token': apiToken,
-                  'Content-Type': 'application/json',
-                },
-                json: true,
-              };
-
-              const response = await this.helpers.request(options);
-              
-              result = {
-                operation: 'getContacts',
-                success: true,
-                contacts: response.payload || [],
-                meta: response.meta,
-              };
-            } catch (error) {
-              result = {
-                operation: 'getContacts',
-                success: false,
-                error: error instanceof Error ? error.message : 'Failed to get contacts',
-              };
-            }
+            const requestOptions = chatwootInstance.createApiRequest(baseUrl, accountId, apiToken, '/contacts', 'GET');
+            result = await chatwootInstance.executeApiRequest(this.helpers, requestOptions, 'getContacts');
             break;
             
           case 'createContact':
             const contactData = this.getNodeParameter('contactData', i) as any;
-            try {
-              const options = {
-                method: 'POST' as IHttpRequestMethods,
-                url: `${baseUrl}/api/v1/accounts/${accountId}/contacts`,
-                headers: {
-                  'api_access_token': apiToken,
-                  'Content-Type': 'application/json',
-                },
-                body: contactData,
-                json: true,
-              };
-
-              const response = await this.helpers.request(options);
-              
-              result = {
-                operation: 'createContact',
-                success: true,
-                contact: response.payload,
-              };
-            } catch (error) {
-              result = {
-                operation: 'createContact',
-                success: false,
-                error: error instanceof Error ? error.message : 'Failed to create contact',
-                contactData,
-              };
-            }
+            const createContactOptions = chatwootInstance.createApiRequest(baseUrl, accountId, apiToken, '/contacts', 'POST', contactData);
+            result = await chatwootInstance.executeApiRequest(this.helpers, createContactOptions, 'createContact', { contactData });
             break;
             
           case 'getContact':
             const contactId = this.getNodeParameter('contactId', i) as string;
-            try {
-              const options = {
-                method: 'GET' as IHttpRequestMethods,
-                url: `${baseUrl}/api/v1/accounts/${accountId}/contacts/${contactId}`,
-                headers: {
-                  'api_access_token': apiToken,
-                  'Content-Type': 'application/json',
-                },
-                json: true,
-              };
-
-              const response = await this.helpers.request(options);
-              
-              result = {
-                operation: 'getContact',
-                success: true,
-                contact: response.payload,
-              };
-            } catch (error) {
-              result = {
-                operation: 'getContact',
-                success: false,
-                error: error instanceof Error ? error.message : 'Failed to get contact',
-                contactId,
-              };
-            }
+            const getContactOptions = chatwootInstance.createApiRequest(baseUrl, accountId, apiToken, `/contacts/${contactId}`, 'GET');
+            result = await chatwootInstance.executeApiRequest(this.helpers, getContactOptions, 'getContact', { contactId });
             break;
             
           case 'sendMessage':
             const conversationId = this.getNodeParameter('conversationId', i) as string;
             const messageContent = this.getNodeParameter('messageContent', i) as string;
-            try {
-              const options = {
-                method: 'POST' as IHttpRequestMethods,
-                url: `${baseUrl}/api/v1/accounts/${accountId}/conversations/${conversationId}/messages`,
-                headers: {
-                  'api_access_token': apiToken,
-                  'Content-Type': 'application/json',
-                },
-                body: {
-                  content: messageContent,
-                  message_type: 'outgoing',
-                },
-                json: true,
-              };
-
-              const response = await this.helpers.request(options);
-              
-              result = {
-                operation: 'sendMessage',
-                success: true,
-                message: response,
-                conversationId,
-              };
-            } catch (error) {
-              result = {
-                operation: 'sendMessage',
-                success: false,
-                error: error instanceof Error ? error.message : 'Failed to send message',
-                conversationId,
-                messageContent,
-              };
-            }
+            const messageBody = { content: messageContent, message_type: 'outgoing' };
+            const sendMessageOptions = chatwootInstance.createApiRequest(baseUrl, accountId, apiToken, `/conversations/${conversationId}/messages`, 'POST', messageBody);
+            result = await chatwootInstance.executeApiRequest(this.helpers, sendMessageOptions, 'sendMessage', { conversationId, messageContent });
             break;
             
           case 'updateContact':
             const updateContactId = this.getNodeParameter('contactId', i) as string;
             const updateContactData = this.getNodeParameter('contactData', i) as any;
-            try {
-              const options = {
-                method: 'PUT' as IHttpRequestMethods,
-                url: `${baseUrl}/api/v1/accounts/${accountId}/contacts/${updateContactId}`,
-                headers: {
-                  'api_access_token': apiToken,
-                  'Content-Type': 'application/json',
-                },
-                body: updateContactData,
-                json: true,
-              };
-
-              const response = await this.helpers.request(options);
-              
-              result = {
-                operation: 'updateContact',
-                success: true,
-                contact: response.payload,
-              };
-            } catch (error) {
-              result = {
-                operation: 'updateContact',
-                success: false,
-                error: error instanceof Error ? error.message : 'Failed to update contact',
-                contactId: updateContactId,
-                updateContactData,
-              };
-            }
+            const updateContactOptions = chatwootInstance.createApiRequest(baseUrl, accountId, apiToken, `/contacts/${updateContactId}`, 'PUT', updateContactData);
+            result = await chatwootInstance.executeApiRequest(this.helpers, updateContactOptions, 'updateContact', { contactId: updateContactId, updateContactData });
             break;
             
           case 'deleteContact':
             const deleteContactId = this.getNodeParameter('contactId', i) as string;
-            try {
-              const options = {
-                method: 'DELETE' as IHttpRequestMethods,
-                url: `${baseUrl}/api/v1/accounts/${accountId}/contacts/${deleteContactId}`,
-                headers: {
-                  'api_access_token': apiToken,
-                  'Content-Type': 'application/json',
-                },
-                json: true,
-              };
-
-              const response = await this.helpers.request(options);
-              
-              result = {
-                operation: 'deleteContact',
-                success: true,
-                message: 'Contact deleted successfully',
-                contactId: deleteContactId,
-              };
-            } catch (error) {
-              result = {
-                operation: 'deleteContact',
-                success: false,
-                error: error instanceof Error ? error.message : 'Failed to delete contact',
-                contactId: deleteContactId,
-              };
-            }
+            const deleteContactOptions = chatwootInstance.createApiRequest(baseUrl, accountId, apiToken, `/contacts/${deleteContactId}`, 'DELETE');
+            result = await chatwootInstance.executeApiRequest(this.helpers, deleteContactOptions, 'deleteContact', { contactId: deleteContactId, message: 'Contact deleted successfully' });
             break;
             
           case 'getConversations':
             const conversationsContactId = this.getNodeParameter('contactId', i) as string;
-            try {
-              const options = {
-                method: 'GET' as IHttpRequestMethods,
-                url: `${baseUrl}/api/v1/accounts/${accountId}/contacts/${conversationsContactId}/conversations`,
-                headers: {
-                  'api_access_token': apiToken,
-                  'Content-Type': 'application/json',
-                },
-                json: true,
-              };
-
-              const response = await this.helpers.request(options);
-              
-              result = {
-                operation: 'getConversations',
-                success: true,
-                conversations: response.payload || [],
-                contactId: conversationsContactId,
-                meta: response.meta,
-              };
-            } catch (error) {
-              result = {
-                operation: 'getConversations',
-                success: false,
-                error: error instanceof Error ? error.message : 'Failed to get conversations',
-                contactId: conversationsContactId,
-              };
-            }
+            const getConversationsOptions = chatwootInstance.createApiRequest(baseUrl, accountId, apiToken, `/contacts/${conversationsContactId}/conversations`, 'GET');
+            result = await chatwootInstance.executeApiRequest(this.helpers, getConversationsOptions, 'getConversations', { contactId: conversationsContactId });
             break;
             
           case 'getMessages':
             const messagesConversationId = this.getNodeParameter('conversationId', i) as string;
-            try {
-              const options = {
-                method: 'GET' as IHttpRequestMethods,
-                url: `${baseUrl}/api/v1/accounts/${accountId}/conversations/${messagesConversationId}/messages`,
-                headers: {
-                  'api_access_token': apiToken,
-                  'Content-Type': 'application/json',
-                },
-                json: true,
-              };
-
-              const response = await this.helpers.request(options);
-              
-              result = {
-                operation: 'getMessages',
-                success: true,
-                messages: response.payload || [],
-                conversationId: messagesConversationId,
-                meta: response.meta,
-              };
-            } catch (error) {
-              result = {
-                operation: 'getMessages',
-                success: false,
-                error: error instanceof Error ? error.message : 'Failed to get messages',
-                conversationId: messagesConversationId,
-              };
-            }
+            const getMessagesOptions = chatwootInstance.createApiRequest(baseUrl, accountId, apiToken, `/conversations/${messagesConversationId}/messages`, 'GET');
+            result = await chatwootInstance.executeApiRequest(this.helpers, getMessagesOptions, 'getMessages', { conversationId: messagesConversationId });
             break;
             
           case 'updateConversation':
             const updateConversationId = this.getNodeParameter('conversationId', i) as string;
             const conversationUpdateData = this.getNodeParameter('conversationData', i, {}) as any;
-            try {
-              const options = {
-                method: 'PUT' as IHttpRequestMethods,
-                url: `${baseUrl}/api/v1/accounts/${accountId}/conversations/${updateConversationId}`,
-                headers: {
-                  'api_access_token': apiToken,
-                  'Content-Type': 'application/json',
-                },
-                body: conversationUpdateData,
-                json: true,
-              };
-
-              const response = await this.helpers.request(options);
-              
-              result = {
-                operation: 'updateConversation',
-                success: true,
-                conversation: response.payload,
-                conversationId: updateConversationId,
-              };
-            } catch (error) {
-              result = {
-                operation: 'updateConversation',
-                success: false,
-                error: error instanceof Error ? error.message : 'Failed to update conversation',
-                conversationId: updateConversationId,
-                conversationUpdateData,
-              };
-            }
+            const updateConversationOptions = chatwootInstance.createApiRequest(baseUrl, accountId, apiToken, `/conversations/${updateConversationId}`, 'PUT', conversationUpdateData);
+            result = await chatwootInstance.executeApiRequest(this.helpers, updateConversationOptions, 'updateConversation', { conversationId: updateConversationId, conversationUpdateData });
             break;
             
           default:
