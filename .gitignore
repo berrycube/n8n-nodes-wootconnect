@@ -69,3 +69,13 @@ backup/
 migration-backup/
 n8n-suite-old/
 n8n-suite-backup-*/
+
+# Docker volumes and data
+n8n_data/
+built_plugins/
+docker-volumes/
+
+# Test and development files
+test-results/
+.test-tmp/
+mock-data/
