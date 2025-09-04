@@ -39,3 +39,7 @@ Thumbs.db
 .env.development.local
 .env.test.local
 .env.production.local
+
+# Package manager
+package-lock.json
+.pnpm-debug.log*
