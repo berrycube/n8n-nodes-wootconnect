@@ -1,0 +1,16 @@
+{
+  "name": "mock-chatwoot-server",
+  "version": "1.0.0",
+  "description": "Mock Chatwoot API server for testing WootConnect n8n node",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "test": "curl http://localhost:4021/health"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": ["chatwoot", "mock", "api", "n8n", "testing"],
+  "license": "MIT"
+}
