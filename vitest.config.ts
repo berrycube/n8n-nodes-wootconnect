@@ -11,16 +11,25 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
-      include: ['nodes/**'],
-      exclude: ['**/*.test.ts', '**/*.spec.ts', '**/*.d.ts'],
+      exclude: [
+        'node_modules/',
+        'dist/',
+        'scripts/',
+        'index.ts',
+        '**/*.test.ts',
+        '**/*.spec.ts',
+        '**/*.d.ts',
+        '**/*.config.ts',
+        '**/*.setup.ts'
+      ],
       thresholds: {
         global: {
-          branches: 80,
+          branches: 85,
           functions: 80,
-          lines: 80,
-          statements: 80,
-        },
-      },
+          lines: 95,
+          statements: 95
+        }
+      }
     },
     testTimeout: 10000,
   },
