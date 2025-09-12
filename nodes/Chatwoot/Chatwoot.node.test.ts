@@ -40,11 +40,13 @@ describe('Chatwoot Node - Business Logic Tests', () => {
           meta: { total: 2, page: 1 }
         };
 
-        mockExecuteFunctions.getNodeParameter
-          .mockReturnValueOnce('getContacts') // operation
-          .mockReturnValueOnce('https://chat.example.com') // baseUrl
-          .mockReturnValueOnce('123') // accountId
-          .mockReturnValueOnce('test-api-token'); // apiToken
+      mockExecuteFunctions.getNodeParameter
+        .mockReturnValueOnce('getContacts') // operation
+        .mockReturnValueOnce('https://chat.example.com') // baseUrl
+        .mockReturnValueOnce('123') // accountId
+        .mockReturnValueOnce('test-api-token') // apiToken
+        .mockReturnValueOnce(2) // page
+        .mockReturnValueOnce(50); // perPage
 
         mockExecuteFunctions.helpers.request.mockResolvedValue(mockResponse);
 
@@ -59,7 +61,7 @@ describe('Chatwoot Node - Business Logic Tests', () => {
         // Verify API request structure
         const requestCall = mockExecuteFunctions.helpers.request.mock.calls[0][0];
         expect(requestCall.method).toBe('GET');
-        expect(requestCall.url).toBe('https://chat.example.com/api/v1/accounts/123/contacts');
+      expect(requestCall.url).toBe('https://chat.example.com/api/v1/accounts/123/contacts?page=2&per_page=50');
         expect(requestCall.headers['api_access_token']).toBe('test-api-token');
         expect(requestCall.headers['Content-Type']).toBe('application/json');
       });
@@ -238,12 +240,14 @@ describe('Chatwoot Node - Business Logic Tests', () => {
           meta: { total: 2 }
         };
 
-        mockExecuteFunctions.getNodeParameter
-          .mockReturnValueOnce('getConversations')
-          .mockReturnValueOnce('https://chat.example.com')
-          .mockReturnValueOnce('123')
-          .mockReturnValueOnce('test-api-token')
-          .mockReturnValueOnce('1'); // contactId
+      mockExecuteFunctions.getNodeParameter
+        .mockReturnValueOnce('getConversations')
+        .mockReturnValueOnce('https://chat.example.com')
+        .mockReturnValueOnce('123')
+        .mockReturnValueOnce('test-api-token')
+        .mockReturnValueOnce(1) // page
+        .mockReturnValueOnce(25) // perPage
+        .mockReturnValueOnce('1'); // contactId
 
         mockExecuteFunctions.helpers.request.mockResolvedValue(mockResponse);
 
@@ -254,7 +258,7 @@ describe('Chatwoot Node - Business Logic Tests', () => {
         expect(result[0][0].json.contactId).toBe('1');
 
         const requestCall = mockExecuteFunctions.helpers.request.mock.calls[0][0];
-        expect(requestCall.url).toBe('https://chat.example.com/api/v1/accounts/123/contacts/1/conversations');
+      expect(requestCall.url).toBe('https://chat.example.com/api/v1/accounts/123/contacts/1/conversations?page=1&per_page=25');
       });
     });
 
@@ -304,12 +308,14 @@ describe('Chatwoot Node - Business Logic Tests', () => {
           meta: { total: 2 }
         };
 
-        mockExecuteFunctions.getNodeParameter
-          .mockReturnValueOnce('getMessages')
-          .mockReturnValueOnce('https://chat.example.com')
-          .mockReturnValueOnce('123')
-          .mockReturnValueOnce('test-api-token')
-          .mockReturnValueOnce('1'); // conversationId
+      mockExecuteFunctions.getNodeParameter
+        .mockReturnValueOnce('getMessages')
+        .mockReturnValueOnce('https://chat.example.com')
+        .mockReturnValueOnce('123')
+        .mockReturnValueOnce('test-api-token')
+        .mockReturnValueOnce(3) // page
+        .mockReturnValueOnce(10) // perPage
+        .mockReturnValueOnce('1'); // conversationId
 
         mockExecuteFunctions.helpers.request.mockResolvedValue(mockResponse);
 
@@ -320,7 +326,7 @@ describe('Chatwoot Node - Business Logic Tests', () => {
         expect(result[0][0].json.conversationId).toBe('1');
 
         const requestCall = mockExecuteFunctions.helpers.request.mock.calls[0][0];
-        expect(requestCall.url).toBe('https://chat.example.com/api/v1/accounts/123/conversations/1/messages');
+      expect(requestCall.url).toBe('https://chat.example.com/api/v1/accounts/123/conversations/1/messages?page=3&per_page=10');
       });
     });
 

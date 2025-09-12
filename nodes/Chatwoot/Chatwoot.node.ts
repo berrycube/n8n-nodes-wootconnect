@@ -24,9 +24,19 @@ export class Chatwoot implements INodeType {
     apiToken: string, 
     endpoint: string, 
     method: IHttpRequestMethods,
-    body?: any
+    body?: any,
+    query?: Record<string, string | number | boolean | undefined>
   ) {
-    const url = `${baseUrl}/api/v1/accounts/${accountId}${endpoint}`;
+    let url = `${baseUrl}/api/v1/accounts/${accountId}${endpoint}`;
+    if (query && Object.keys(query).length > 0) {
+      const u = new URL(url);
+      const sp = new URLSearchParams(u.search);
+      for (const [k, v] of Object.entries(query)) {
+        if (v !== undefined && v !== null) sp.set(k, String(v));
+      }
+      u.search = sp.toString();
+      url = u.toString();
+    }
     const options: any = {
       method,
       url,
@@ -163,6 +173,30 @@ export class Chatwoot implements INodeType {
         ],
         default: 'getContacts',
         description: 'The operation to perform',
+      },
+      {
+        displayName: 'Page',
+        name: 'page',
+        type: 'number',
+        default: 1,
+        displayOptions: {
+          show: {
+            operation: ['getContacts', 'getConversations', 'getMessages'],
+          },
+        },
+        description: 'Page number for pagination',
+      },
+      {
+        displayName: 'Per Page',
+        name: 'perPage',
+        type: 'number',
+        default: 20,
+        displayOptions: {
+          show: {
+            operation: ['getContacts', 'getConversations', 'getMessages'],
+          },
+        },
+        description: 'Items per page',
       },
       {
         displayName: 'Chatwoot Base URL',
@@ -385,7 +419,9 @@ export class Chatwoot implements INodeType {
         
         switch (operation) {
           case 'getContacts':
-            const requestOptions = chatwootInstance.createApiRequest(baseUrl, accountId, apiToken, '/contacts', 'GET');
+            const page = this.getNodeParameter('page', i) as number;
+            const perPage = this.getNodeParameter('perPage', i) as number;
+            const requestOptions = chatwootInstance.createApiRequest(baseUrl, accountId, apiToken, '/contacts', 'GET', undefined, { page, per_page: perPage });
             result = await chatwootInstance.executeApiRequest(this.helpers, requestOptions, 'getContacts');
             break;
             
@@ -424,13 +460,17 @@ export class Chatwoot implements INodeType {
             
           case 'getConversations':
             const conversationsContactId = this.getNodeParameter('contactId', i) as string;
-            const getConversationsOptions = chatwootInstance.createApiRequest(baseUrl, accountId, apiToken, `/contacts/${conversationsContactId}/conversations`, 'GET');
+            const pageConv = this.getNodeParameter('page', i) as number;
+            const perPageConv = this.getNodeParameter('perPage', i) as number;
+            const getConversationsOptions = chatwootInstance.createApiRequest(baseUrl, accountId, apiToken, `/contacts/${conversationsContactId}/conversations`, 'GET', undefined, { page: pageConv, per_page: perPageConv });
             result = await chatwootInstance.executeApiRequest(this.helpers, getConversationsOptions, 'getConversations', { contactId: conversationsContactId });
             break;
             
           case 'getMessages':
             const messagesConversationId = this.getNodeParameter('conversationId', i) as string;
-            const getMessagesOptions = chatwootInstance.createApiRequest(baseUrl, accountId, apiToken, `/conversations/${messagesConversationId}/messages`, 'GET');
+            const pageMsg = this.getNodeParameter('page', i) as number;
+            const perPageMsg = this.getNodeParameter('perPage', i) as number;
+            const getMessagesOptions = chatwootInstance.createApiRequest(baseUrl, accountId, apiToken, `/conversations/${messagesConversationId}/messages`, 'GET', undefined, { page: pageMsg, per_page: perPageMsg });
             result = await chatwootInstance.executeApiRequest(this.helpers, getMessagesOptions, 'getMessages', { conversationId: messagesConversationId });
             break;
             
