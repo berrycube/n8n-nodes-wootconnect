@@ -102,7 +102,11 @@ export class Chatwoot implements INodeType {
       'getConversations': 'conversations',
       'updateConversation': 'conversation',
       'getMessages': 'messages',
-      'sendMessage': 'message'
+      'sendMessage': 'message',
+      'listTeams': 'teams',
+      'listContactTags': 'tags',
+      'addContactTag': 'tag',
+      'removeContactTag': 'message'
     };
     return keyMap[operation] || 'data';
   }
@@ -170,6 +174,26 @@ export class Chatwoot implements INodeType {
             value: 'updateConversation',
             description: 'Update conversation status or assignment',
           },
+          {
+            name: 'List Teams',
+            value: 'listTeams',
+            description: 'List teams in the account',
+          },
+          {
+            name: 'List Contact Tags',
+            value: 'listContactTags',
+            description: 'List all tags for a contact',
+          },
+          {
+            name: 'Add Contact Tag',
+            value: 'addContactTag',
+            description: 'Add a tag to a contact',
+          },
+          {
+            name: 'Remove Contact Tag',
+            value: 'removeContactTag',
+            description: 'Remove a tag from a contact',
+          },
         ],
         default: 'getContacts',
         description: 'The operation to perform',
@@ -232,10 +256,22 @@ export class Chatwoot implements INodeType {
         default: '',
         displayOptions: {
           show: {
-            operation: ['getContact', 'updateContact', 'deleteContact', 'getConversations'],
+            operation: ['getContact', 'updateContact', 'deleteContact', 'getConversations', 'listContactTags', 'addContactTag', 'removeContactTag'],
           },
         },
         description: 'Contact ID to work with',
+      },
+      {
+        displayName: 'Tag',
+        name: 'tag',
+        type: 'string',
+        default: '',
+        displayOptions: {
+          show: {
+            operation: ['addContactTag', 'removeContactTag'],
+          },
+        },
+        description: 'Tag to add or remove',
       },
       {
         displayName: 'Conversation ID',
@@ -480,6 +516,37 @@ export class Chatwoot implements INodeType {
             const updateConversationOptions = chatwootInstance.createApiRequest(baseUrl, accountId, apiToken, `/conversations/${updateConversationId}`, 'PUT', conversationUpdateData);
             result = await chatwootInstance.executeApiRequest(this.helpers, updateConversationOptions, 'updateConversation', { conversationId: updateConversationId, conversationUpdateData });
             break;
+
+          case 'listTeams': {
+            const pageTeams = this.getNodeParameter('page', i) as number;
+            const perTeams = this.getNodeParameter('perPage', i) as number;
+            const listTeamsOptions = chatwootInstance.createApiRequest(baseUrl, accountId, apiToken, `/teams`, 'GET', undefined, { page: pageTeams, per_page: perTeams });
+            result = await chatwootInstance.executeApiRequest(this.helpers, listTeamsOptions, 'listTeams');
+            break;
+          }
+
+          case 'listContactTags': {
+            const contactIdTags = this.getNodeParameter('contactId', i) as string;
+            const listTagsOptions = chatwootInstance.createApiRequest(baseUrl, accountId, apiToken, `/contacts/${contactIdTags}/tags`, 'GET');
+            result = await chatwootInstance.executeApiRequest(this.helpers, listTagsOptions, 'listContactTags', { contactId: contactIdTags });
+            break;
+          }
+
+          case 'addContactTag': {
+            const contactIdAdd = this.getNodeParameter('contactId', i) as string;
+            const tagToAdd = this.getNodeParameter('tag', i) as string;
+            const addTagOptions = chatwootInstance.createApiRequest(baseUrl, accountId, apiToken, `/contacts/${contactIdAdd}/tags`, 'POST', { tag: tagToAdd });
+            result = await chatwootInstance.executeApiRequest(this.helpers, addTagOptions, 'addContactTag', { contactId: contactIdAdd, tag: tagToAdd });
+            break;
+          }
+
+          case 'removeContactTag': {
+            const contactIdRemove = this.getNodeParameter('contactId', i) as string;
+            const tagToRemove = this.getNodeParameter('tag', i) as string;
+            const removeTagOptions = chatwootInstance.createApiRequest(baseUrl, accountId, apiToken, `/contacts/${contactIdRemove}/tags/${encodeURIComponent(tagToRemove)}`, 'DELETE');
+            result = await chatwootInstance.executeApiRequest(this.helpers, removeTagOptions, 'removeContactTag', { contactId: contactIdRemove, tag: tagToRemove, message: 'Tag removed' });
+            break;
+          }
             
           default:
             throw new NodeOperationError(this.getNode(), `Unknown operation: ${operation}`);
