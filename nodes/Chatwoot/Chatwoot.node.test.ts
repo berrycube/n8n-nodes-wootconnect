@@ -297,6 +297,90 @@ describe('Chatwoot Node - Business Logic Tests', () => {
     });
   });
 
+  describe('Teams and Tags Operations', () => {
+    it('should list teams with pagination', async () => {
+      const mockResponse = { payload: [ { id: 1, name: 'Team A' } ], meta: { total: 1 } };
+
+      mockExecuteFunctions.getNodeParameter
+        .mockReturnValueOnce('listTeams')
+        .mockReturnValueOnce('https://chat.example.com')
+        .mockReturnValueOnce('123')
+        .mockReturnValueOnce('test-api-token')
+        .mockReturnValueOnce(2) // page
+        .mockReturnValueOnce(50); // perPage
+
+      mockExecuteFunctions.helpers.request.mockResolvedValue(mockResponse);
+
+      const result = await chatwoot.execute.call(mockExecuteFunctions);
+
+      expect(result[0][0].json.success).toBe(true);
+      expect(result[0][0].json.teams).toEqual(mockResponse.payload);
+
+      const req = mockExecuteFunctions.helpers.request.mock.calls[0][0];
+      expect(req.url).toBe('https://chat.example.com/api/v1/accounts/123/teams?page=2&per_page=50');
+    });
+
+    it('should list contact tags', async () => {
+      const mockResponse = { payload: ['vip','new'] };
+
+      mockExecuteFunctions.getNodeParameter
+        .mockReturnValueOnce('listContactTags')
+        .mockReturnValueOnce('https://chat.example.com')
+        .mockReturnValueOnce('123')
+        .mockReturnValueOnce('test-api-token')
+        .mockReturnValueOnce('42'); // contactId
+
+      mockExecuteFunctions.helpers.request.mockResolvedValue(mockResponse);
+
+      const result = await chatwoot.execute.call(mockExecuteFunctions);
+      expect(result[0][0].json.tags).toEqual(['vip','new']);
+
+      const req = mockExecuteFunctions.helpers.request.mock.calls[0][0];
+      expect(req.method).toBe('GET');
+      expect(req.url).toBe('https://chat.example.com/api/v1/accounts/123/contacts/42/tags');
+    });
+
+    it('should add contact tag', async () => {
+      mockExecuteFunctions.getNodeParameter
+        .mockReturnValueOnce('addContactTag')
+        .mockReturnValueOnce('https://chat.example.com')
+        .mockReturnValueOnce('123')
+        .mockReturnValueOnce('test-api-token')
+        .mockReturnValueOnce('42') // contactId
+        .mockReturnValueOnce('vip'); // tag
+
+      mockExecuteFunctions.helpers.request.mockResolvedValue({ payload: { tag: 'vip' } });
+
+      const result = await chatwoot.execute.call(mockExecuteFunctions);
+      expect(result[0][0].json.operation).toBe('addContactTag');
+
+      const req = mockExecuteFunctions.helpers.request.mock.calls[0][0];
+      expect(req.method).toBe('POST');
+      expect(req.url).toBe('https://chat.example.com/api/v1/accounts/123/contacts/42/tags');
+      expect(req.body).toEqual({ tag: 'vip' });
+    });
+
+    it('should remove contact tag', async () => {
+      mockExecuteFunctions.getNodeParameter
+        .mockReturnValueOnce('removeContactTag')
+        .mockReturnValueOnce('https://chat.example.com')
+        .mockReturnValueOnce('123')
+        .mockReturnValueOnce('test-api-token')
+        .mockReturnValueOnce('42') // contactId
+        .mockReturnValueOnce('vip'); // tag
+
+      mockExecuteFunctions.helpers.request.mockResolvedValue({});
+
+      const result = await chatwoot.execute.call(mockExecuteFunctions);
+      expect(result[0][0].json.operation).toBe('removeContactTag');
+      expect(result[0][0].json.message).toBe('Tag removed');
+
+      const req = mockExecuteFunctions.helpers.request.mock.calls[0][0];
+      expect(req.method).toBe('DELETE');
+      expect(req.url).toBe('https://chat.example.com/api/v1/accounts/123/contacts/42/tags/vip');
+    });
+  });
+
   describe('Message Operations', () => {
     describe('Get Messages', () => {
       it('should retrieve messages from conversation', async () => {
