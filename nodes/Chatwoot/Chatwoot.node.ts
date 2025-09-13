@@ -170,6 +170,11 @@ export class Chatwoot implements INodeType {
             description: 'Send a message to a conversation',
           },
           {
+            name: 'Send Attachment',
+            value: 'sendAttachment',
+            description: 'Send an attachment to a conversation',
+          },
+          {
             name: 'Update Conversation',
             value: 'updateConversation',
             description: 'Update conversation status or assignment',
@@ -280,10 +285,55 @@ export class Chatwoot implements INodeType {
         default: '',
         displayOptions: {
           show: {
-            operation: ['getMessages', 'sendMessage', 'updateConversation'],
+            operation: ['getMessages', 'sendMessage', 'updateConversation', 'sendAttachment'],
           },
         },
         description: 'Conversation ID to work with',
+      },
+      {
+        displayName: 'Attachment Source',
+        name: 'attachmentSource',
+        type: 'options',
+        options: [
+          { name: 'URL', value: 'url' },
+          { name: 'Base64', value: 'base64' },
+        ],
+        default: 'url',
+        displayOptions: { show: { operation: ['sendAttachment'] } },
+        description: 'Where to read the attachment from',
+      },
+      {
+        displayName: 'Attachment URL',
+        name: 'attachmentUrl',
+        type: 'string',
+        default: '',
+        displayOptions: { show: { operation: ['sendAttachment'], attachmentSource: ['url'] } },
+        description: 'Public URL of the file to attach',
+      },
+      {
+        displayName: 'File Name',
+        name: 'fileName',
+        type: 'string',
+        default: 'file.bin',
+        displayOptions: { show: { operation: ['sendAttachment'], attachmentSource: ['base64'] } },
+        description: 'File name for the base64 attachment',
+      },
+      {
+        displayName: 'Content Type',
+        name: 'contentType',
+        type: 'string',
+        default: 'application/octet-stream',
+        displayOptions: { show: { operation: ['sendAttachment'], attachmentSource: ['base64'] } },
+        description: 'MIME type of the base64 attachment',
+      },
+      {
+        displayName: 'File (Base64)',
+        name: 'attachmentBase64',
+        type: 'string',
+        typeOptions: { rows: 4 },
+        default: '',
+        displayOptions: { show: { operation: ['sendAttachment'], attachmentSource: ['base64'] } },
+        description: 'Base64-encoded content of the file',
       },
       {
         displayName: 'Message Content',
@@ -480,6 +530,23 @@ export class Chatwoot implements INodeType {
             const sendMessageOptions = chatwootInstance.createApiRequest(baseUrl, accountId, apiToken, `/conversations/${conversationId}/messages`, 'POST', messageBody);
             result = await chatwootInstance.executeApiRequest(this.helpers, sendMessageOptions, 'sendMessage', { conversationId, messageContent });
             break;
+          
+          case 'sendAttachment': {
+            const convId = this.getNodeParameter('conversationId', i) as string;
+            const source = this.getNodeParameter('attachmentSource', i) as string;
+            const attachOptions = chatwootInstance.createApiRequest(baseUrl, accountId, apiToken, `/conversations/${convId}/attachments`, 'POST');
+            if (source === 'url') {
+              const attachmentUrl = this.getNodeParameter('attachmentUrl', i) as string;
+              (attachOptions as any).formData = { file_url: attachmentUrl };
+            } else {
+              const fileName = this.getNodeParameter('fileName', i) as string;
+              const contentType = this.getNodeParameter('contentType', i) as string;
+              const attachmentBase64 = this.getNodeParameter('attachmentBase64', i) as string;
+              (attachOptions as any).formData = { file_name: fileName, file_base64: attachmentBase64, content_type: contentType };
+            }
+            result = await chatwootInstance.executeApiRequest(this.helpers, attachOptions, 'sendAttachment', { conversationId: convId });
+            break;
+          }
             
           case 'updateContact':
             const updateContactId = this.getNodeParameter('contactId', i) as string;

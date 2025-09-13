@@ -468,6 +468,49 @@ describe('Chatwoot Node - Business Logic Tests', () => {
     });
   });
 
+  describe('Attachment Operations', () => {
+    it('should send attachment via URL', async () => {
+      mockExecuteFunctions.getNodeParameter
+        .mockReturnValueOnce('sendAttachment')
+        .mockReturnValueOnce('https://chat.example.com')
+        .mockReturnValueOnce('123')
+        .mockReturnValueOnce('test-api-token')
+        .mockReturnValueOnce('1') // conversationId
+        .mockReturnValueOnce('url') // attachmentSource
+        .mockReturnValueOnce('https://files.example.com/a.png'); // attachmentUrl
+
+      mockExecuteFunctions.helpers.request.mockResolvedValue({ payload: { id: 99 } });
+
+      const result = await chatwoot.execute.call(mockExecuteFunctions);
+
+      expect(result[0][0].json.operation).toBe('sendAttachment');
+
+      const req = mockExecuteFunctions.helpers.request.mock.calls[0][0];
+      expect(req.method).toBe('POST');
+      expect(req.url).toBe('https://chat.example.com/api/v1/accounts/123/conversations/1/attachments');
+      expect(req.formData).toEqual({ file_url: 'https://files.example.com/a.png' });
+    });
+
+    it('should send attachment via Base64', async () => {
+      mockExecuteFunctions.getNodeParameter
+        .mockReturnValueOnce('sendAttachment')
+        .mockReturnValueOnce('https://chat.example.com')
+        .mockReturnValueOnce('123')
+        .mockReturnValueOnce('test-api-token')
+        .mockReturnValueOnce('2') // conversationId
+        .mockReturnValueOnce('base64') // attachmentSource
+        .mockReturnValueOnce('file.bin') // fileName
+        .mockReturnValueOnce('application/octet-stream') // contentType
+        .mockReturnValueOnce('ZmlsZQ=='); // attachmentBase64
+
+      mockExecuteFunctions.helpers.request.mockResolvedValue({ payload: { id: 100 } });
+
+      await chatwoot.execute.call(mockExecuteFunctions);
+      const req = mockExecuteFunctions.helpers.request.mock.calls[0][0];
+      expect(req.formData).toEqual({ file_name: 'file.bin', file_base64: 'ZmlsZQ==', content_type: 'application/octet-stream' });
+    });
+  });
+
   describe('Error Handling and Edge Cases', () => {
     it('should handle unknown operation', async () => {
       mockExecuteFunctions.getNodeParameter
